@@ -36,7 +36,7 @@ struct ContentView: View {
                 }
                 .padding(.bottom, 20)
             }
-            .navigationTitle("Roster Scanner")
+            .navigationTitle("RosterIQ")
             .navigationDestination(isPresented: $navigateToConfiguration) {
                 if !parsedPlayersFromWeb.isEmpty {
                     URLRosterConfigView(
