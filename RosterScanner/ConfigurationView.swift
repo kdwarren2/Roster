@@ -10,13 +10,41 @@ struct ConfigurationView: View {
     @State private var teamDesignator = ""
     @State private var schoolName = ""
     @State private var selectedFormat: ExportFormat = .full
-    @State private var navigateToPreview = false
+    @State private var selectedSport: SportType = .other
     @State private var parsedPlayers: [Player] = []
+    @State private var navigateToPreview = false
     @State private var showingTeamPicker = false
     
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 25) {
+                // Preview Image/PDF
+                if let image = sourceImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 200)
+                        .cornerRadius(12)
+                        .shadow(radius: 5)
+                } else if let pdfURL = sourcePDF {
+                    HStack {
+                        Image(systemName: "doc.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.red)
+                        VStack(alignment: .leading) {
+                            Text("PDF Document")
+                                .font(.headline)
+                            Text(pdfURL.lastPathComponent)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(12)
+                }
+                
                 // Team Settings Section
                 VStack(alignment: .leading, spacing: 15) {
                     Text("Team Information")
@@ -34,9 +62,9 @@ struct ConfigurationView: View {
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .autocapitalization(.none)
                                 .onChange(of: teamDesignator) { oldValue, newValue in
-                                    // Auto-fill school name if team exists
                                     if let team = settingsManager.getTeam(for: newValue) {
                                         schoolName = team.schoolName
+                                        selectedSport = team.sportType
                                     }
                                 }
                             
@@ -45,16 +73,18 @@ struct ConfigurationView: View {
                                     showingTeamPicker = true
                                 }) {
                                     Image(systemName: "clock.arrow.circlepath")
-                                        .font(.title3)
                                         .foregroundColor(.blue)
                                 }
                             }
                         }
                         
-                        Text("This will be combined with jersey numbers (e.g., 'm25')")
+                        Text("Short abbreviation for TextExpander triggers")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    .padding()
+                    .background(Color.gray.opacity(0.05))
+                    .cornerRadius(8)
                     
                     // School Name
                     VStack(alignment: .leading, spacing: 8) {
@@ -65,10 +95,34 @@ struct ConfigurationView: View {
                         TextField("e.g., Mississippi State", text: $schoolName)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                         
-                        Text("Full name for expanded text")
+                        Text("Full name for photo captions")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    .padding()
+                    .background(Color.gray.opacity(0.05))
+                    .cornerRadius(8)
+                    
+                    // Sport Type
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Sport")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        Picker("Sport", selection: $selectedSport) {
+                            ForEach(SportType.allCases, id: \.self) { sport in
+                                Text(sport.rawValue).tag(sport)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        Text(selectedSport.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.05))
+                    .cornerRadius(8)
                 }
                 .padding()
                 .background(Color.gray.opacity(0.1))
@@ -85,37 +139,41 @@ struct ConfigurationView: View {
                             Text(format.rawValue).tag(format)
                         }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
+                    .pickerStyle(.segmented)
                     
-                    // Format Examples
-                    VStack(alignment: .leading, spacing: 12) {
+                    // Format Preview
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Example:")
-                            .font(.subheadline)
+                            .font(.caption)
                             .fontWeight(.medium)
                         
-                        let examplePlayer = Player(number: "25", name: "Dak Prescott", position: "Quarterback")
-                        let exampleDesignator = teamDesignator.isEmpty ? "m" : teamDesignator
-                        let exampleSchool = schoolName.isEmpty ? "Mississippi State" : schoolName
+                        let samplePlayer = Player(number: "25", name: "John Smith", position: "QB")
+                        let sampleTrigger = selectedSport.allowsDuplicateNumbers ? 
+                            "\(teamDesignator.isEmpty ? "m" : teamDesignator)25o" :
+                            "\(teamDesignator.isEmpty ? "m" : teamDesignator)25"
+                        let sampleExpansion = selectedFormat.formatPlayer(
+                            samplePlayer,
+                            designator: teamDesignator.isEmpty ? "m" : teamDesignator,
+                            schoolName: schoolName.isEmpty ? "School Name" : schoolName,
+                            sportType: selectedSport
+                        ).components(separatedBy: "\t").last ?? ""
                         
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Trigger: \(exampleDesignator)25")
+                        HStack(spacing: 4) {
+                            Text("Trigger:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(sampleTrigger)
                                 .font(.caption)
                                 .fontWeight(.medium)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(4)
-                            
+                        }
+                        
+                        HStack(spacing: 4) {
                             Text("Expands to:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            
-                            Text(selectedFormat.formatPlayer(examplePlayer, designator: exampleDesignator, schoolName: exampleSchool).components(separatedBy: "\t").last ?? "")
+                            Text(sampleExpansion)
                                 .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.1))
-                                .cornerRadius(4)
+                                .fontWeight(.medium)
                         }
                     }
                     .padding()
@@ -151,6 +209,7 @@ struct ConfigurationView: View {
                 teamDesignator: teamDesignator,
                 schoolName: schoolName,
                 exportFormat: selectedFormat,
+                sportType: selectedSport,
                 settingsManager: settingsManager
             )
         }
@@ -158,7 +217,8 @@ struct ConfigurationView: View {
             TeamPickerView(
                 teams: settingsManager.recentTeams,
                 selectedDesignator: $teamDesignator,
-                selectedSchoolName: $schoolName
+                selectedSchoolName: $schoolName,
+                selectedSport: $selectedSport
             )
         }
     }
@@ -172,7 +232,7 @@ struct ConfigurationView: View {
         parsedPlayers = parser.smartParse(extractedText)
         
         // Save team settings
-        settingsManager.saveTeam(designator: teamDesignator, schoolName: schoolName)
+        settingsManager.saveTeam(designator: teamDesignator, schoolName: schoolName, sportType: selectedSport)
         
         navigateToPreview = true
     }
@@ -183,6 +243,7 @@ struct TeamPickerView: View {
     let teams: [TeamSettings]
     @Binding var selectedDesignator: String
     @Binding var selectedSchoolName: String
+    @Binding var selectedSport: SportType
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -191,14 +252,22 @@ struct TeamPickerView: View {
                 Button(action: {
                     selectedDesignator = team.designator
                     selectedSchoolName = team.schoolName
+                    selectedSport = team.sportType
                     dismiss()
                 }) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(team.schoolName)
                             .font(.headline)
-                        Text("Designator: \(team.designator)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        HStack {
+                            Text("Designator: \(team.designator)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("•")
+                                .foregroundColor(.secondary)
+                            Text(team.sportType.rawValue)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                         Text("Last used: \(team.lastUsed.formatted(date: .abbreviated, time: .omitted))")
                             .font(.caption2)
                             .foregroundColor(.secondary)
